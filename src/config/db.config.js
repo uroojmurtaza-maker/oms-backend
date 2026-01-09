@@ -9,5 +9,4 @@ module.exports = {
     port: process.env.DB_PORT,
     dialect: 'postgres',
   },
-  // Add test/production later if needed
 };

@@ -1,7 +1,6 @@
-const userService=require('./user.service')
-const uploadProfileImage = require('../../middlewares/upload.middleware'); 
+const userService = require('./user.service')
+const uploadProfileImage = require('../../middlewares/upload.middleware');
 
-// ✅ BETTER ERROR HANDLING
 const createEmployee = async (req, res) => {
   try {
     const newUser = await userService.createUser(req.body, req.file);
@@ -11,7 +10,7 @@ const createEmployee = async (req, res) => {
       user: newUser,
     });
   } catch (error) {
-    console.error('Create employee error:', error); // Log for debugging
+    console.error('Create employee error:', error);
 
     // Handle Multer-specific errors
     if (error.name === 'MulterError') {
@@ -23,9 +22,9 @@ const createEmployee = async (req, res) => {
 
     // Handle validation errors
     let statusCode = 500;
-    if (error.message.includes('exists') || 
-        error.message.includes('Missing') || 
-        error.message.includes('Invalid')) {
+    if (error.message.includes('exists') ||
+      error.message.includes('Missing') ||
+      error.message.includes('Invalid')) {
       statusCode = 400;
     }
 
@@ -35,10 +34,21 @@ const createEmployee = async (req, res) => {
   }
 };
 
+const getEmployee = async (req, res) => {
+  try {
+    const employees = await userService.getEmployees();
+    res.status(200).json({ employees });
+  } catch (error) {
+    console.error('Get employees error:', error);
+    res.status(500).json({ message: 'Failed to get employees' });
+  }
+};
+
 
 module.exports = {
   createEmployee: [
-    uploadProfileImage.single('profileImage'), // ← expects field name "profileImage"
+    uploadProfileImage.single('profileImage'),
     createEmployee,
   ],
+  getEmployee,
 };

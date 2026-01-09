@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const s3Client = require('../../config/s3.config');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('../../utils/s3SignedUrl.utils');
 const {
   DESIGNATION_MODEL_VALUES,
   DEPARTMENT_MODEL_VALUES,
@@ -13,11 +14,8 @@ const {
 
 class UserService {
   async createUser(userData, profileImageFile = null) {
-    console.log('🚀 Starting createUser process');
 
-    // 🔐 START TRANSACTION
     const transaction = await sequelize.transaction();
-    console.log('🔐 Sequelize transaction started');
 
     try {
       const {
@@ -35,14 +33,12 @@ class UserService {
         role = DEFAULTS.ROLE,
       } = userData;
 
-      // 1️⃣ VALIDATION
       console.log('🧪 Validating user data');
       if (!name || !email || !password || !designation || !department || !employeeId || !joiningDate) {
         throw new Error('Missing required fields');
       }
 
-      // 2️⃣ DUPLICATE CHECK
-      console.log('🔍 Checking for existing user');
+
       const existingUser = await User.findOne({
         where: { [Op.or]: [{ email }, { employeeId }] },
         transaction,
@@ -52,7 +48,6 @@ class UserService {
         throw new Error('User already exists with this email or employee ID');
       }
 
-      // Validate enums using constants
       if (!DESIGNATION_MODEL_VALUES.includes(designation)) {
         throw new Error(
           `Invalid designation. Allowed: ${DESIGNATION_MODEL_VALUES.join(', ')}`
@@ -74,12 +69,9 @@ class UserService {
       if (!USER_ROLE_VALUES.includes(role)) {
         throw new Error(`Invalid role. Allowed: ${USER_ROLE_VALUES.join(', ')}`);
       }
-      // 3️⃣ HASH PASSWORD
-      console.log('🔐 Hashing password');
+
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // 4️⃣ CREATE USER (BEFORE S3)
-      console.log('📝 Creating user in DB (NOT committed yet)');
       const user = await User.create(
         {
           name,
@@ -98,7 +90,6 @@ class UserService {
         { transaction }
       );
 
-      console.log(`✅ User created with ID ${user.id} (inside transaction)`);
 
       /*
         At this point:
@@ -110,7 +101,6 @@ class UserService {
       let profilePictureKey = null;
 
       if (profileImageFile) {
-        console.log('☁️ Starting S3 upload');
 
         profilePictureKey = `profiles/${user.id}-${Date.now()}-${profileImageFile.originalname}`;
 
@@ -124,21 +114,14 @@ class UserService {
           })
         );
 
-        console.log('✅ S3 upload successful');
 
-        // 6️⃣ UPDATE USER WITH S3 KEY
-        console.log('📝 Updating user with S3 key');
         await user.update(
           { profilePictureKey },
           { transaction }
         );
-      } else {
-        console.log('ℹ️ No profile image provided, skipping S3 upload');
       }
 
-      // 7️⃣ COMMIT TRANSACTION
       await transaction.commit();
-      console.log('✅ Transaction committed successfully');
 
       const userObj = user.toJSON();
       delete userObj.password;
@@ -159,13 +142,47 @@ class UserService {
     } catch (error) {
       console.error('❌ Error occurred during user creation:', error.message);
 
-      console.log('↩️ Rolling back transaction');
       await transaction.rollback();
 
-      console.log('🗑️ Transaction rolled back — user creation undone');
 
       throw error;
     }
+  }
+
+  async getEmployees() {
+    const employees = await User.findAll({ where: { role: 'Employee' } });
+
+    // Generate signed URLs for profile pictures
+    const employeesWithSignedUrls = await Promise.all(
+      employees.map(async (employee) => {
+        const employeeObj = employee.toJSON();
+        delete employeeObj.password;
+
+        // Generate signed URL if profile picture key exists
+        if (employeeObj.profilePictureKey) {
+          try {
+            employeeObj.profilePictureUrl = await getSignedUrl(employeeObj.profilePictureKey);
+          } catch (error) {
+            console.error(`Error generating signed URL for employee ${employeeObj.id}:`, error);
+            employeeObj.profilePictureUrl = null;
+          }
+        } else {
+          employeeObj.profilePictureUrl = null;
+        }
+
+        // Format timestamps to ISO string
+        if (employeeObj.createdAt) {
+          employeeObj.createdAt = new Date(employeeObj.createdAt).toISOString();
+        }
+        if (employeeObj.updatedAt) {
+          employeeObj.updatedAt = new Date(employeeObj.updatedAt).toISOString();
+        }
+
+        return employeeObj;
+      })
+    );
+
+    return employeesWithSignedUrls;
   }
 }
 
@@ -173,96 +190,3 @@ module.exports = new UserService();
 
 
 
-// const { User } = require('../../models')
-// const { Op } = require('sequelize')
-// const { getSignedUrl } = require('../../utils/s3SignedUrl.utils')
-// const bcrypt = require('bcrypt')
-
-// class UserService {
-//   async createUser(userData, profileImageFile = null) {
-//     const {
-//       name,
-//       email,
-//       password,
-//       designation,
-//       department,
-//       dateOfBirth,
-//       employeeId,
-//       salary,
-//       joiningDate,
-//       phoneNumber,
-//       status = "Current Employee",
-//       role = "Employee"
-//     } = userData;
-
-//     // Basic validation
-//     if (!name || !email || !password || !designation || !department || !employeeId || !joiningDate) {
-//       throw new Error('Missing required fields');
-//     }
-
-//     // Enum validation
-//     const enums = {
-//       designation: ['Manager', 'Developer', 'Designer', 'HR'],
-//       department: ['Engineering', 'Sales', 'Marketing', 'HR'],
-//       status: ['Current Employee', 'Old Employee'],
-//       role: ['Employee']
-//     }
-
-//     for (const [key, allowed] of Object.entries(enums)) {
-//       if (!allowed.includes(eval(key))) {
-//         throw new Error(`Invalid ${key}. Allowed: ${allowed.join(', ')}`)
-//       }
-//     }
-
-
-//     // Check for duplicates
-//     const existingUser = await User.findOne({
-//       where: { [Op.or]: [{ email }, { employeeId }] }
-//     });
-//     if (existingUser) {
-//       throw new Error('User already exists with this email or employee ID');
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // Get S3 key from uploaded file (if any)
-//     let profilePictureKey = null;
-//     if (profileImageFile) {
-//       profilePictureKey = profileImageFile.key; // e.g., "profiles/1234567890-photo.jpg"
-//     }
-
-//     // Create user in DB — save ONLY the S3 key, NOT the full URL
-//     const user = await User.create({
-//       name,
-//       email,
-//       password: hashedPassword,
-//       designation,
-//       department,
-//       dateOfBirth,
-//       employeeId,
-//       salary,
-//       joiningDate,
-//       phoneNumber,
-//       status,
-//       role,
-//       profilePictureKey,
-//     });
-
-//     // Generate signed URL for immediate display
-//     let profilePictureUrl = null;
-//     if (profilePictureKey) {
-//       profilePictureUrl = await getSignedUrl(profilePictureKey);
-//     }
-
-//     // Convert to plain object and add virtual field
-//     const userObj = user.toJSON();
-//     userObj.profilePictureUrl = profilePictureUrl;  // ← Temporary signed URL
-
-//     delete userObj.password;
-
-//     return userObj;
-//   }
-// }
-
-// module.exports = new UserService()

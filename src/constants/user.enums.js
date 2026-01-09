@@ -1,15 +1,9 @@
-/**
- * User-related enums and constants
- * These constants ensure consistency across the application
- */
-
 // Designation enum - Job titles/positions
 const DESIGNATION = {
   MANAGER: 'Manager',
   DEVELOPER: 'Developer',
   DESIGNER: 'Designer',
   HR: 'HR',
-  // Additional designations used in seeders (consider adding to model if needed)
   SOFTWARE_ENGINEER: 'Software Engineer',
   QA_ENGINEER: 'QA Engineer',
   DEVOPS_ENGINEER: 'DevOps Engineer',
@@ -30,8 +24,7 @@ const DESIGNATION = {
 // Array of all valid designations (for validation)
 const DESIGNATION_VALUES = Object.values(DESIGNATION);
 
-// Designation values currently allowed in the database model
-// Updated to include all designations used in the application
+
 const DESIGNATION_MODEL_VALUES = [
   DESIGNATION.MANAGER,
   DESIGNATION.DEVELOPER,
@@ -60,7 +53,6 @@ const DEPARTMENT = {
   SALES: 'Sales',
   MARKETING: 'Marketing',
   HR: 'HR',
-  // Additional departments used in seeders (consider adding to model if needed)
   QUALITY_ASSURANCE: 'Quality Assurance',
   HUMAN_RESOURCES: 'Human Resources',
   PRODUCT: 'Product',
@@ -75,8 +67,6 @@ const DEPARTMENT = {
 // Array of all valid departments (for validation)
 const DEPARTMENT_VALUES = Object.values(DEPARTMENT);
 
-// Department values currently allowed in the database model
-// Updated to include all departments used in the application
 const DEPARTMENT_MODEL_VALUES = [
   DEPARTMENT.ENGINEERING,
   DEPARTMENT.SALES,

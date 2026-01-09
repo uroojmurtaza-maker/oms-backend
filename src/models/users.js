@@ -1,4 +1,3 @@
-// backend/models/user.js
 const { DataTypes } = require('sequelize');
 const {
   DESIGNATION_MODEL_VALUES,

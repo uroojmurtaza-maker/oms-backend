@@ -36,7 +36,6 @@ class AuthService {
     };
   }
 
-  // Logout is client-side only (we'll explain below)
 }
 
 module.exports = new AuthService();
