@@ -1,0 +1,15 @@
+// src/config/s3.config.js
+require('dotenv').config();
+const { S3Client } = require('@aws-sdk/client-s3');
+
+const s3Client = new S3Client({
+  region: "eu-west-1",
+  endpoint: "https://s3.eu-west-1.amazonaws.com",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+module.exports = s3Client;
+

@@ -1,0 +1,133 @@
+/**
+ * User-related enums and constants
+ * These constants ensure consistency across the application
+ */
+
+// Designation enum - Job titles/positions
+const DESIGNATION = {
+  MANAGER: 'Manager',
+  DEVELOPER: 'Developer',
+  DESIGNER: 'Designer',
+  HR: 'HR',
+  // Additional designations used in seeders (consider adding to model if needed)
+  SOFTWARE_ENGINEER: 'Software Engineer',
+  QA_ENGINEER: 'QA Engineer',
+  DEVOPS_ENGINEER: 'DevOps Engineer',
+  HR_SPECIALIST: 'HR Specialist',
+  HR_MANAGER: 'HR Manager',
+  PRODUCT_MANAGER: 'Product Manager',
+  UI_UX_DESIGNER: 'UI/UX Designer',
+  GRAPHIC_DESIGNER: 'Graphic Designer',
+  DATA_ANALYST: 'Data Analyst',
+  MARKETING_EXECUTIVE: 'Marketing Executive',
+  FINANCE_ANALYST: 'Finance Analyst',
+  CONTENT_WRITER: 'Content Writer',
+  SUPPORT_ENGINEER: 'Support Engineer',
+  LEAD_DEVELOPER: 'Lead Developer',
+  BUSINESS_ANALYST: 'Business Analyst',
+};
+
+// Array of all valid designations (for validation)
+const DESIGNATION_VALUES = Object.values(DESIGNATION);
+
+// Designation values currently allowed in the database model
+// Updated to include all designations used in the application
+const DESIGNATION_MODEL_VALUES = [
+  DESIGNATION.MANAGER,
+  DESIGNATION.DEVELOPER,
+  DESIGNATION.DESIGNER,
+  DESIGNATION.HR,
+  DESIGNATION.SOFTWARE_ENGINEER,
+  DESIGNATION.QA_ENGINEER,
+  DESIGNATION.DEVOPS_ENGINEER,
+  DESIGNATION.HR_SPECIALIST,
+  DESIGNATION.HR_MANAGER,
+  DESIGNATION.PRODUCT_MANAGER,
+  DESIGNATION.UI_UX_DESIGNER,
+  DESIGNATION.GRAPHIC_DESIGNER,
+  DESIGNATION.DATA_ANALYST,
+  DESIGNATION.MARKETING_EXECUTIVE,
+  DESIGNATION.FINANCE_ANALYST,
+  DESIGNATION.CONTENT_WRITER,
+  DESIGNATION.SUPPORT_ENGINEER,
+  DESIGNATION.LEAD_DEVELOPER,
+  DESIGNATION.BUSINESS_ANALYST,
+];
+
+// Department enum - Organizational departments
+const DEPARTMENT = {
+  ENGINEERING: 'Engineering',
+  SALES: 'Sales',
+  MARKETING: 'Marketing',
+  HR: 'HR',
+  // Additional departments used in seeders (consider adding to model if needed)
+  QUALITY_ASSURANCE: 'Quality Assurance',
+  HUMAN_RESOURCES: 'Human Resources',
+  PRODUCT: 'Product',
+  DESIGN: 'Design',
+  ANALYTICS: 'Analytics',
+  FINANCE: 'Finance',
+  CONTENT: 'Content',
+  SUPPORT: 'Support',
+  BUSINESS: 'Business',
+};
+
+// Array of all valid departments (for validation)
+const DEPARTMENT_VALUES = Object.values(DEPARTMENT);
+
+// Department values currently allowed in the database model
+// Updated to include all departments used in the application
+const DEPARTMENT_MODEL_VALUES = [
+  DEPARTMENT.ENGINEERING,
+  DEPARTMENT.SALES,
+  DEPARTMENT.MARKETING,
+  DEPARTMENT.HR,
+  DEPARTMENT.QUALITY_ASSURANCE,
+  DEPARTMENT.HUMAN_RESOURCES,
+  DEPARTMENT.PRODUCT,
+  DEPARTMENT.DESIGN,
+  DEPARTMENT.ANALYTICS,
+  DEPARTMENT.FINANCE,
+  DEPARTMENT.CONTENT,
+  DEPARTMENT.SUPPORT,
+  DEPARTMENT.BUSINESS,
+];
+
+// Employee status enum
+const EMPLOYEE_STATUS = {
+  CURRENT_EMPLOYEE: 'Current Employee',
+  OLD_EMPLOYEE: 'Old Employee',
+};
+
+// Array of all valid employee statuses
+const EMPLOYEE_STATUS_VALUES = Object.values(EMPLOYEE_STATUS);
+
+// User role enum
+const USER_ROLE = {
+  ADMIN: 'Admin',
+  EMPLOYEE: 'Employee',
+};
+
+// Array of all valid user roles
+const USER_ROLE_VALUES = Object.values(USER_ROLE);
+
+// Default values
+const DEFAULTS = {
+  STATUS: EMPLOYEE_STATUS.CURRENT_EMPLOYEE,
+  ROLE: USER_ROLE.EMPLOYEE,
+};
+
+module.exports = {
+  DESIGNATION,
+  DESIGNATION_VALUES,
+  DESIGNATION_MODEL_VALUES,
+  DEPARTMENT,
+  DEPARTMENT_VALUES,
+  DEPARTMENT_MODEL_VALUES,
+  EMPLOYEE_STATUS,
+  EMPLOYEE_STATUS_VALUES,
+  USER_ROLE,
+  USER_ROLE_VALUES,
+  DEFAULTS,
+};
+
