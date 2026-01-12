@@ -1,16 +1,35 @@
-// src/utils/s3SignedUrl.js
-const { getSignedUrl: getPresignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { GetObjectCommand } = require('@aws-sdk/client-s3');
-const s3Client = require('../config/s3.config');
+const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-const getSignedUrl = async (key) => {
-  const command = new GetObjectCommand({
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  }
+});
+
+async function getSignedUrlForUpload({ key, contentType, expiresIn = 900 }) {
+  const command = new PutObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET,
-    Key: key, // e.g., profiles/1640995200000-photo.jpg
+    Key: key,
+    ContentType: contentType,
   });
 
-  // URL valid for 1 hour (3600 seconds)
-  return await getPresignedUrl(s3Client, command, { expiresIn: 3600 });
-};
+  return await getSignedUrl(s3Client, command, { expiresIn });
+}
 
-module.exports = { getSignedUrl };
+// Renamed this one ↓↓↓
+async function getTemporarySignedUrl(key, expiresIn = 3600) {
+  const command = new GetObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET,
+    Key: key,
+  });
+
+  return await getSignedUrl(s3Client, command, { expiresIn });
+}
+
+module.exports = {
+  getSignedUrlForUpload,
+  getTemporarySignedUrl,     // ← use this name everywhere
+};

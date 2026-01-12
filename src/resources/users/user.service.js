@@ -1,9 +1,7 @@
 const { User, sequelize } = require('../../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
-const s3Client = require('../../config/s3.config');
-const { PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('../../utils/s3SignedUrl.utils');
+const { getSignedUrlForUpload, getTemporarySignedUrl } = require('../../utils/s3SignedUrl.utils');
 const {
   DESIGNATION_MODEL_VALUES,
   DEPARTMENT_MODEL_VALUES,
@@ -13,7 +11,7 @@ const {
 } = require('../../constants');
 
 class UserService {
-  async createUser(userData, profileImageFile = null) {
+  async createUser(userData) {
 
     const transaction = await sequelize.transaction();
 
@@ -29,6 +27,7 @@ class UserService {
         salary,
         joiningDate,
         phoneNumber,
+        profilePictureKey,
         status = DEFAULTS.STATUS,
         role = DEFAULTS.ROLE,
       } = userData;
@@ -84,42 +83,12 @@ class UserService {
           salary,
           joiningDate,
           phoneNumber,
+          profilePictureKey: profilePictureKey || null,
           status,
           role,
         },
         { transaction }
       );
-
-
-      /*
-        At this point:
-        - User exists ONLY inside transaction
-        - If rollback happens → user disappears
-      */
-
-      // 5️⃣ UPLOAD TO S3
-      let profilePictureKey = null;
-
-      if (profileImageFile) {
-
-        profilePictureKey = `profiles/${user.id}-${Date.now()}-${profileImageFile.originalname}`;
-
-        await s3Client.send(
-          new PutObjectCommand({
-            Bucket: process.env.AWS_S3_BUCKET,
-            Key: profilePictureKey,
-            Body: profileImageFile.buffer,
-            ContentType: profileImageFile.mimetype,
-            ACL: 'private',
-          })
-        );
-
-
-        await user.update(
-          { profilePictureKey },
-          { transaction }
-        );
-      }
 
       await transaction.commit();
 
@@ -149,8 +118,46 @@ class UserService {
     }
   }
 
-  async getEmployees() {
-    const employees = await User.findAll({ where: { role: 'Employee' } });
+  async getProfilePresignedUrl({ fileName, fileType }) {
+    const key = `profiles/${Date.now()}-${fileName}`;  // User ID nahi hai abhi, to Date.now() use kiya
+
+    const url = await getSignedUrlForUpload({
+      key,
+      contentType: fileType,
+      expiresIn: 900  // 15 minutes
+    });
+
+    return {
+      uploadUrl: url,
+      key: key
+    };
+  }
+
+  async getEmployees(page = 1, limit = 10, search = '') {
+    const pageNumber = Math.max(1, parseInt(page, 10)) || 1;
+    const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10))) || 10; // Max 100 items per page
+    const offset = (pageNumber - 1) * pageSize;
+
+    // Build where clause
+    const whereClause = { role: 'Employee' };
+
+    // Add search condition if search term is provided
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: searchTerm } },
+        { email: { [Op.iLike]: searchTerm } },
+      ];
+    }
+
+    // Get paginated employees with total count
+    const { count, rows: employees } = await User.findAndCountAll({
+      where: whereClause,
+      limit: pageSize,
+      offset: offset,
+      order: [['createdAt', 'DESC']], // Order by newest first
+    });
+
 
     // Generate signed URLs for profile pictures
     const employeesWithSignedUrls = await Promise.all(
@@ -161,7 +168,7 @@ class UserService {
         // Generate signed URL if profile picture key exists
         if (employeeObj.profilePictureKey) {
           try {
-            employeeObj.profilePictureUrl = await getSignedUrl(employeeObj.profilePictureKey);
+            employeeObj.profilePictureUrl = await getTemporarySignedUrl(employeeObj.profilePictureKey);
           } catch (error) {
             console.error(`Error generating signed URL for employee ${employeeObj.id}:`, error);
             employeeObj.profilePictureUrl = null;
@@ -182,7 +189,22 @@ class UserService {
       })
     );
 
-    return employeesWithSignedUrls;
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(count / pageSize);
+    const hasNextPage = pageNumber < totalPages;
+    const hasPrevPage = pageNumber > 1;
+
+    return {
+      employees: employeesWithSignedUrls,
+      pagination: {
+        total: count,
+        page: pageNumber,
+        limit: pageSize,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 }
 

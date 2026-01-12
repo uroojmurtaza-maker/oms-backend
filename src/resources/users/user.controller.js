@@ -1,9 +1,9 @@
 const userService = require('./user.service')
-const uploadProfileImage = require('../../middlewares/upload.middleware');
+
 
 const createEmployee = async (req, res) => {
   try {
-    const newUser = await userService.createUser(req.body, req.file);
+    const newUser = await userService.createUser(req.body);
 
     res.status(201).json({
       message: 'Employee created successfully',
@@ -12,13 +12,6 @@ const createEmployee = async (req, res) => {
   } catch (error) {
     console.error('Create employee error:', error);
 
-    // Handle Multer-specific errors
-    if (error.name === 'MulterError') {
-      if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ message: 'File too large (max 5MB)' });
-      }
-      return res.status(400).json({ message: error.message });
-    }
 
     // Handle validation errors
     let statusCode = 500;
@@ -36,8 +29,9 @@ const createEmployee = async (req, res) => {
 
 const getEmployee = async (req, res) => {
   try {
-    const employees = await userService.getEmployees();
-    res.status(200).json({ employees });
+    const { page, limit, search } = req.query;
+    const result = await userService.getEmployees(page, limit, search);
+    res.status(200).json(result);
   } catch (error) {
     console.error('Get employees error:', error);
     res.status(500).json({ message: 'Failed to get employees' });
@@ -45,10 +39,29 @@ const getEmployee = async (req, res) => {
 };
 
 
+const getProfileUploadUrl = async (req, res) => {
+  try {
+    const { fileName, fileType } = req.body;
+
+    if (!fileName || !fileType) {
+      return res.status(400).json({ message: 'fileName and fileType are required' });
+    }
+
+    const uploadData = await userService.getProfilePresignedUrl({
+      fileName,
+      fileType
+    });
+
+    res.status(200).json(uploadData);
+  } catch (error) {
+    console.error('Get presigned url error:', error);
+    res.status(500).json({ message: 'Failed to generate upload URL' });
+  }
+};
+
+
 module.exports = {
-  createEmployee: [
-    uploadProfileImage.single('profileImage'),
-    createEmployee,
-  ],
+  createEmployee,
+  getProfileUploadUrl,
   getEmployee,
 };
