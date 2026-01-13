@@ -59,9 +59,21 @@ const getProfileUploadUrl = async (req, res) => {
   }
 };
 
+const deleteEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await userService.deleteEmployee(id);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Delete employee error:', error);
+    res.status(500).json({ message: 'Failed to delete employee' });
+  }
+};
+
 
 module.exports = {
   createEmployee,
   getProfileUploadUrl,
   getEmployee,
+  deleteEmployee,
 };

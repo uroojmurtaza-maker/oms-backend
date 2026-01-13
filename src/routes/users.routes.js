@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.post('/create-employee', protect, adminOnly, controller.createEmployee);
 router.get('/get-employees', protect, adminOnly, controller.getEmployee);
+router.delete('/delete-employee/:id', protect, adminOnly, controller.deleteEmployee);
 router.post('/upload-url', controller.getProfileUploadUrl);
 
 module.exports = router;

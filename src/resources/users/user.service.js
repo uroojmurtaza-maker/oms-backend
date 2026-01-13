@@ -2,6 +2,8 @@ const { User, sequelize } = require('../../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const { getSignedUrlForUpload, getTemporarySignedUrl } = require('../../utils/s3SignedUrl.utils');
+const s3Client = require('../../config/s3.config');
+const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const {
   DESIGNATION_MODEL_VALUES,
   DEPARTMENT_MODEL_VALUES,
@@ -233,6 +235,52 @@ class UserService {
         hasPrevPage,
       },
     };
+  }
+
+
+  async deleteEmployee(id) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Find the employee
+      const employee = await User.findOne({
+        where: { id, role: 'Employee' },
+        transaction,
+      });
+
+      if (!employee) {
+        throw new Error('Employee not found');
+      }
+
+      // Delete profile picture from S3 if it exists
+      if (employee.profilePictureKey) {
+        try {
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: employee.profilePictureKey,
+            })
+          );
+        } catch (s3Error) {
+          console.error(`Error deleting profile picture from S3 for employee ${id}:`, s3Error);
+          // Continue with user deletion even if S3 deletion fails
+        }
+      }
+
+      // Delete the employee from database
+      await employee.destroy({ transaction });
+
+      await transaction.commit();
+
+      return {
+        message: 'Employee deleted successfully',
+        id: id,
+      };
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error deleting employee:', error);
+      throw error;
+    }
   }
 }
 
