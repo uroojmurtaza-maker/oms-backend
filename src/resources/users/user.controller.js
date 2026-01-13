@@ -82,6 +82,17 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
+const updateEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await userService.updateEmployee(id, req.body);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Update employee error:', error);
+    res.status(500).json({ message: 'Failed to update employee' });
+  }
+};
+
 
 module.exports = {
   createEmployee,
@@ -89,4 +100,5 @@ module.exports = {
   getEmployee,
   getEmployeeById,
   deleteEmployee,
+  updateEmployee,
 };

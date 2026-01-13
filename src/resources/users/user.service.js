@@ -307,6 +307,149 @@ class UserService {
       throw error;
     }
   }
+
+  async updateEmployee(id, employeeData) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Find the employee
+      const employee = await User.findOne({
+        where: { id, role: 'Employee' },
+        transaction,
+      });
+
+      if (!employee) {
+        throw new Error('Employee not found');
+      }
+
+      const {
+        name,
+        email,
+        password,
+        designation,
+        department,
+        dateOfBirth,
+        employeeId,
+        salary,
+        joiningDate,
+        phoneNumber,
+        profilePictureKey,
+        status,
+      } = employeeData;
+
+      // Validate designation if provided
+      if (designation && !DESIGNATION_MODEL_VALUES.includes(designation)) {
+        throw new Error(
+          `Invalid designation. Allowed: ${DESIGNATION_MODEL_VALUES.join(', ')}`
+        );
+      }
+
+      // Validate department if provided
+      if (department && !DEPARTMENT_MODEL_VALUES.includes(department)) {
+        throw new Error(
+          `Invalid department. Allowed: ${DEPARTMENT_MODEL_VALUES.join(', ')}`
+        );
+      }
+
+      // Validate status if provided
+      if (status && !EMPLOYEE_STATUS_VALUES.includes(status)) {
+        throw new Error(
+          `Invalid status. Allowed: ${EMPLOYEE_STATUS_VALUES.join(', ')}`
+        );
+      }
+
+      // Check for email/employeeId conflicts (excluding current user)
+      if (email || employeeId) {
+        const conflictConditions = [];
+        if (email) conflictConditions.push({ email });
+        if (employeeId) conflictConditions.push({ employeeId });
+
+        const existingUser = await User.findOne({
+          where: {
+            [Op.and]: [
+              { [Op.or]: conflictConditions },
+              { id: { [Op.ne]: id } }, // Exclude current user
+            ],
+          },
+          transaction,
+        });
+
+        if (existingUser) {
+          throw new Error('User already exists with this email or employee ID');
+        }
+      }
+
+      // Handle profile picture update: delete old image if new one is provided
+      const oldProfilePictureKey = employee.profilePictureKey;
+      if (profilePictureKey && oldProfilePictureKey && oldProfilePictureKey !== profilePictureKey) {
+        try {
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: oldProfilePictureKey,
+            })
+          );
+        } catch (s3Error) {
+          console.error(`Error deleting old profile picture from S3 for employee ${id}:`, s3Error);
+          // Continue with update even if S3 deletion fails
+        }
+      }
+
+      // Prepare update data
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (designation !== undefined) updateData.designation = designation;
+      if (department !== undefined) updateData.department = department;
+      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
+      if (employeeId !== undefined) updateData.employeeId = employeeId;
+      if (salary !== undefined) updateData.salary = salary;
+      if (joiningDate !== undefined) updateData.joiningDate = joiningDate;
+      if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+      if (profilePictureKey !== undefined) updateData.profilePictureKey = profilePictureKey;
+      if (status !== undefined) updateData.status = status;
+
+      // Hash password if provided
+      if (password) {
+        updateData.password = await bcrypt.hash(password, 10);
+      }
+
+      // Update the employee
+      await employee.update(updateData, { transaction });
+      await transaction.commit();
+
+      const updatedEmployeeObj = employee.toJSON();
+      delete updatedEmployeeObj.password;
+
+      // Format timestamps to ISO string
+      if (updatedEmployeeObj.createdAt) {
+        updatedEmployeeObj.createdAt = new Date(updatedEmployeeObj.createdAt).toISOString();
+      }
+      if (updatedEmployeeObj.updatedAt) {
+        updatedEmployeeObj.updatedAt = new Date(updatedEmployeeObj.updatedAt).toISOString();
+      }
+
+      // Generate signed URL for profile picture if it exists
+      if (updatedEmployeeObj.profilePictureKey) {
+        try {
+          updatedEmployeeObj.profilePictureUrl = await getTemporarySignedUrl(updatedEmployeeObj.profilePictureKey);
+        } catch (error) {
+          console.error(`Error generating signed URL for employee ${id}:`, error);
+          updatedEmployeeObj.profilePictureUrl = null;
+        }
+      } else {
+        updatedEmployeeObj.profilePictureUrl = null;
+      }
+
+      return updatedEmployeeObj;
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error updating employee:', error);
+      throw error;
+    }
+  }
+
+
 }
 
 module.exports = new UserService();
