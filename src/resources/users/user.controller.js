@@ -38,6 +38,17 @@ const getEmployee = async (req, res) => {
   }
 };
 
+const getEmployeeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await userService.getEmployeeById(id);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get employee by id error:', error);
+    res.status(500).json({ message: 'Failed to get employee by id' });
+  }
+};
+
 
 const getProfileUploadUrl = async (req, res) => {
   try {
@@ -75,5 +86,6 @@ module.exports = {
   createEmployee,
   getProfileUploadUrl,
   getEmployee,
+  getEmployeeById,
   deleteEmployee,
 };

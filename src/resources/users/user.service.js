@@ -237,6 +237,16 @@ class UserService {
     };
   }
 
+  async getEmployeeById(id) {
+    const employee = await User.findOne({
+      where: { id, role: 'Employee' },
+    });
+    if (!employee) {
+      throw new Error('Employee not found');
+    }
+    return employee.toJSON();
+  }
+
 
   async deleteEmployee(id) {
     const transaction = await sequelize.transaction();
