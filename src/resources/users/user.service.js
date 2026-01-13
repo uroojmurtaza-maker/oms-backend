@@ -133,13 +133,29 @@ class UserService {
     };
   }
 
-  async getEmployees(page = 1, limit = 10, search = '') {
+  async getEmployees(page = 1, limit = 10, search = '', department = '', designation = '', sortBy = '', sortOrder = 'asc') {
     const pageNumber = Math.max(1, parseInt(page, 10)) || 1;
     const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10))) || 10; // Max 100 items per page
     const offset = (pageNumber - 1) * pageSize;
 
     // Build where clause
     const whereClause = { role: 'Employee' };
+
+    // Add department filter if provided
+    if (department && department.trim()) {
+      const departmentValue = department.trim();
+      if (DEPARTMENT_MODEL_VALUES.includes(departmentValue)) {
+        whereClause.department = departmentValue;
+      }
+    }
+
+    // Add designation filter if provided
+    if (designation && designation.trim()) {
+      const designationValue = designation.trim();
+      if (DESIGNATION_MODEL_VALUES.includes(designationValue)) {
+        whereClause.designation = designationValue;
+      }
+    }
 
     // Add search condition if search term is provided
     if (search && search.trim()) {
@@ -150,12 +166,24 @@ class UserService {
       ];
     }
 
+    // Build order clause
+    const validSortFields = ['name', 'department', 'joiningDate'];
+    const validSortOrders = ['asc', 'desc', 'ASC', 'DESC'];
+
+    let orderClause = [['createdAt', 'DESC']]; // Default order
+
+    if (sortBy && sortBy.trim() && validSortFields.includes(sortBy.trim())) {
+      const field = sortBy.trim();
+      const order = validSortOrders.includes(sortOrder) ? sortOrder.toUpperCase() : 'ASC';
+      orderClause = [[field, order]];
+    }
+
     // Get paginated employees with total count
     const { count, rows: employees } = await User.findAndCountAll({
       where: whereClause,
       limit: pageSize,
       offset: offset,
-      order: [['createdAt', 'DESC']], // Order by newest first
+      order: orderClause,
     });
 
 
