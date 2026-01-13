@@ -135,13 +135,18 @@ class UserService {
     };
   }
 
-  async getEmployees(page = 1, limit = 10, search = '', department = '', designation = '', sortBy = '', sortOrder = 'asc') {
+  async getEmployees(page = 1, limit = 10, search = '', department = '', designation = '', sortBy = '', sortOrder = 'asc', currentUserId = null) {
     const pageNumber = Math.max(1, parseInt(page, 10)) || 1;
     const pageSize = Math.max(1, Math.min(100, parseInt(limit, 10))) || 10; // Max 100 items per page
     const offset = (pageNumber - 1) * pageSize;
 
     // Build where clause
     const whereClause = { role: 'Employee' };
+
+    // Exclude current user from results
+    if (currentUserId) {
+      whereClause.id = { [Op.ne]: currentUserId };
+    }
 
     // Add department filter if provided
     if (department && department.trim()) {
@@ -244,7 +249,17 @@ class UserService {
     if (!employee) {
       throw new Error('Employee not found');
     }
-    return employee.toJSON();
+
+    const employeeObj = employee.toJSON();
+    delete employeeObj.password;
+
+    if (employeeObj.profilePictureKey) {
+      employeeObj.profilePictureUrl = await getTemporarySignedUrl(employeeObj.profilePictureKey);
+    } else {
+      employeeObj.profilePictureUrl = null;
+    }
+
+    return employeeObj;
   }
 
 

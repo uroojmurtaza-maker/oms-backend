@@ -30,7 +30,8 @@ const createEmployee = async (req, res) => {
 const getEmployee = async (req, res) => {
   try {
     const { page, limit, search, department, designation, sortBy, sortOrder } = req.query;
-    const result = await userService.getEmployees(page, limit, search, department, designation, sortBy, sortOrder);
+    const currentUserId = req.user?.id; // Get user ID from token
+    const result = await userService.getEmployees(page, limit, search, department, designation, sortBy, sortOrder, currentUserId);
     res.status(200).json(result);
   } catch (error) {
     console.error('Get employees error:', error);
