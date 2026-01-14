@@ -94,6 +94,8 @@ const updateEmployee = async (req, res) => {
 };
 
 
+
+
 module.exports = {
   createEmployee,
   getProfileUploadUrl,

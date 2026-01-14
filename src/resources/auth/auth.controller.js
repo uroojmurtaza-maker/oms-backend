@@ -24,4 +24,15 @@ const logout = (req, res) => {
     res.status(200).json({ message: 'Logout successful' });
 };
 
-module.exports = { login, logout };
+const updatePassword = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id;
+    const { oldPassword, newPassword } = req.body;
+    const result = await authService.updatePassword(currentUserId, oldPassword, newPassword);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { login, logout, updatePassword };

@@ -36,6 +36,38 @@ class AuthService {
     };
   }
 
+  async updatePassword(currentUserId, oldPassword, newPassword) {
+    // Validate inputs
+    if (!oldPassword || !oldPassword.trim()) {
+      throw new Error('Old password is required');
+    }
+
+    if (!newPassword || !newPassword.trim()) {
+      throw new Error('New password is required');
+    }
+
+    // Find user
+    const user = await User.findOne({ where: { id: currentUserId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Verify old password
+    const isOldPasswordValid = await bcrypt.compare(oldPassword.trim(), user.password);
+    if (!isOldPasswordValid) {
+      throw new Error('Old password is incorrect');
+    }
+
+    // Hash and update to new password
+    const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+    await user.update({ password: hashedPassword });
+
+    return {
+      message: 'Password updated successfully',
+      id: currentUserId,
+    };
+  }
+
 }
 
 module.exports = new AuthService();

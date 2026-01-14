@@ -288,7 +288,6 @@ class UserService {
           );
         } catch (s3Error) {
           console.error(`Error deleting profile picture from S3 for employee ${id}:`, s3Error);
-          // Continue with user deletion even if S3 deletion fails
         }
       }
 
@@ -391,7 +390,6 @@ class UserService {
           );
         } catch (s3Error) {
           console.error(`Error deleting old profile picture from S3 for employee ${id}:`, s3Error);
-          // Continue with update even if S3 deletion fails
         }
       }
 
@@ -450,6 +448,7 @@ class UserService {
   }
 
 
+  
 }
 
 module.exports = new UserService();
