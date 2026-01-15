@@ -11,5 +11,7 @@ router.get('/get-employee/:id', protect, adminOnly, controller.getEmployeeById);
 router.delete('/delete-employee/:id', protect, adminOnly, controller.deleteEmployee);
 router.put('/update-employee/:id', protect, adminOnly, controller.updateEmployee);
 router.post('/upload-url', controller.getProfileUploadUrl);
+router.get('/get-profile', protect, controller.getProfile);
+router.put("/update-profile", protect, controller.updateProfile);
 
 module.exports = router;

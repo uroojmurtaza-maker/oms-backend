@@ -12,4 +12,5 @@ router.post('/logout', controller.logout);
 router.put('/update-password', protect, controller.updatePassword);
 
 
+
 module.exports = router;

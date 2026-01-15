@@ -1,16 +1,21 @@
 const { User, sequelize } = require('../../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
-const { getSignedUrlForUpload, getTemporarySignedUrl } = require('../../utils/s3SignedUrl.utils');
-const s3Client = require('../../config/s3.config');
-const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrlForUpload } = require('../../utils/s3SignedUrl.utils');
 const {
   DESIGNATION_MODEL_VALUES,
   DEPARTMENT_MODEL_VALUES,
-  EMPLOYEE_STATUS_VALUES,
   USER_ROLE_VALUES,
   DEFAULTS,
 } = require('../../constants');
+const {
+  formatUserObject,
+  validateEnumFields,
+  checkUserConflicts,
+  deleteProfilePictureFromS3,
+  handleProfilePictureUpdate,
+  prepareUpdateData,
+} = require('./user.helpers');
 
 class UserService {
   async createUser(userData) {
@@ -40,32 +45,11 @@ class UserService {
       }
 
 
-      const existingUser = await User.findOne({
-        where: { [Op.or]: [{ email }, { employeeId }] },
-        transaction,
-      });
+      // Check for user conflicts
+      await checkUserConflicts({ email, employeeId, transaction });
 
-      if (existingUser) {
-        throw new Error('User already exists with this email or employee ID');
-      }
-
-      if (!DESIGNATION_MODEL_VALUES.includes(designation)) {
-        throw new Error(
-          `Invalid designation. Allowed: ${DESIGNATION_MODEL_VALUES.join(', ')}`
-        );
-      }
-
-      if (!DEPARTMENT_MODEL_VALUES.includes(department)) {
-        throw new Error(
-          `Invalid department. Allowed: ${DEPARTMENT_MODEL_VALUES.join(', ')}`
-        );
-      }
-
-      if (!EMPLOYEE_STATUS_VALUES.includes(status)) {
-        throw new Error(
-          `Invalid status. Allowed: ${EMPLOYEE_STATUS_VALUES.join(', ')}`
-        );
-      }
+      // Validate enum fields
+      validateEnumFields({ designation, department, status });
 
       if (!USER_ROLE_VALUES.includes(role)) {
         throw new Error(`Invalid role. Allowed: ${USER_ROLE_VALUES.join(', ')}`);
@@ -94,17 +78,7 @@ class UserService {
 
       await transaction.commit();
 
-      const userObj = user.toJSON();
-      delete userObj.password;
-
-      // Format timestamps to local date string (YYYY-MM-DD format)
-      // This ensures consistent date display regardless of timezone
-      if (userObj.createdAt) {
-        userObj.createdAt = new Date(userObj.createdAt).toISOString();
-      }
-      if (userObj.updatedAt) {
-        userObj.updatedAt = new Date(userObj.updatedAt).toISOString();
-      }
+      const userObj = await formatUserObject(user.toJSON(), user.id);
 
       console.log('🎉 User creation completed successfully');
 
@@ -197,30 +171,7 @@ class UserService {
     // Generate signed URLs for profile pictures
     const employeesWithSignedUrls = await Promise.all(
       employees.map(async (employee) => {
-        const employeeObj = employee.toJSON();
-        delete employeeObj.password;
-
-        // Generate signed URL if profile picture key exists
-        if (employeeObj.profilePictureKey) {
-          try {
-            employeeObj.profilePictureUrl = await getTemporarySignedUrl(employeeObj.profilePictureKey);
-          } catch (error) {
-            console.error(`Error generating signed URL for employee ${employeeObj.id}:`, error);
-            employeeObj.profilePictureUrl = null;
-          }
-        } else {
-          employeeObj.profilePictureUrl = null;
-        }
-
-        // Format timestamps to ISO string
-        if (employeeObj.createdAt) {
-          employeeObj.createdAt = new Date(employeeObj.createdAt).toISOString();
-        }
-        if (employeeObj.updatedAt) {
-          employeeObj.updatedAt = new Date(employeeObj.updatedAt).toISOString();
-        }
-
-        return employeeObj;
+        return await formatUserObject(employee.toJSON(), employee.id);
       })
     );
 
@@ -250,16 +201,7 @@ class UserService {
       throw new Error('Employee not found');
     }
 
-    const employeeObj = employee.toJSON();
-    delete employeeObj.password;
-
-    if (employeeObj.profilePictureKey) {
-      employeeObj.profilePictureUrl = await getTemporarySignedUrl(employeeObj.profilePictureKey);
-    } else {
-      employeeObj.profilePictureUrl = null;
-    }
-
-    return employeeObj;
+    return await formatUserObject(employee.toJSON(), employee.id);
   }
 
 
@@ -278,18 +220,7 @@ class UserService {
       }
 
       // Delete profile picture from S3 if it exists
-      if (employee.profilePictureKey) {
-        try {
-          await s3Client.send(
-            new DeleteObjectCommand({
-              Bucket: process.env.AWS_S3_BUCKET,
-              Key: employee.profilePictureKey,
-            })
-          );
-        } catch (s3Error) {
-          console.error(`Error deleting profile picture from S3 for employee ${id}:`, s3Error);
-        }
-      }
+      await deleteProfilePictureFromS3(employee.profilePictureKey, id);
 
       // Delete the employee from database
       await employee.destroy({ transaction });
@@ -336,76 +267,21 @@ class UserService {
         status,
       } = employeeData;
 
-      // Validate designation if provided
-      if (designation && !DESIGNATION_MODEL_VALUES.includes(designation)) {
-        throw new Error(
-          `Invalid designation. Allowed: ${DESIGNATION_MODEL_VALUES.join(', ')}`
-        );
-      }
+      // Validate enum fields
+      validateEnumFields({ designation, department, status });
 
-      // Validate department if provided
-      if (department && !DEPARTMENT_MODEL_VALUES.includes(department)) {
-        throw new Error(
-          `Invalid department. Allowed: ${DEPARTMENT_MODEL_VALUES.join(', ')}`
-        );
-      }
-
-      // Validate status if provided
-      if (status && !EMPLOYEE_STATUS_VALUES.includes(status)) {
-        throw new Error(
-          `Invalid status. Allowed: ${EMPLOYEE_STATUS_VALUES.join(', ')}`
-        );
-      }
-
-      // Check for email/employeeId conflicts (excluding current user)
-      if (email || employeeId) {
-        const conflictConditions = [];
-        if (email) conflictConditions.push({ email });
-        if (employeeId) conflictConditions.push({ employeeId });
-
-        const existingUser = await User.findOne({
-          where: {
-            [Op.and]: [
-              { [Op.or]: conflictConditions },
-              { id: { [Op.ne]: id } }, // Exclude current user
-            ],
-          },
-          transaction,
-        });
-
-        if (existingUser) {
-          throw new Error('User already exists with this email or employee ID');
-        }
-      }
+      // Check for user conflicts
+      await checkUserConflicts({ email, employeeId, excludeUserId: id, transaction });
 
       // Handle profile picture update: delete old image if new one is provided
-      const oldProfilePictureKey = employee.profilePictureKey;
-      if (profilePictureKey && oldProfilePictureKey && oldProfilePictureKey !== profilePictureKey) {
-        try {
-          await s3Client.send(
-            new DeleteObjectCommand({
-              Bucket: process.env.AWS_S3_BUCKET,
-              Key: oldProfilePictureKey,
-            })
-          );
-        } catch (s3Error) {
-          console.error(`Error deleting old profile picture from S3 for employee ${id}:`, s3Error);
-        }
-      }
+      await handleProfilePictureUpdate(employee.profilePictureKey, profilePictureKey, id);
 
       // Prepare update data
-      const updateData = {};
-      if (name !== undefined) updateData.name = name;
-      if (email !== undefined) updateData.email = email;
-      if (designation !== undefined) updateData.designation = designation;
-      if (department !== undefined) updateData.department = department;
-      if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
-      if (employeeId !== undefined) updateData.employeeId = employeeId;
-      if (salary !== undefined) updateData.salary = salary;
-      if (joiningDate !== undefined) updateData.joiningDate = joiningDate;
-      if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
-      if (profilePictureKey !== undefined) updateData.profilePictureKey = profilePictureKey;
-      if (status !== undefined) updateData.status = status;
+      const updateData = prepareUpdateData(employeeData, [
+        'name', 'email', 'designation', 'department', 'dateOfBirth',
+        'employeeId', 'salary', 'joiningDate', 'phoneNumber',
+        'profilePictureKey', 'status'
+      ]);
 
       // Hash password if provided
       if (password) {
@@ -416,30 +292,7 @@ class UserService {
       await employee.update(updateData, { transaction });
       await transaction.commit();
 
-      const updatedEmployeeObj = employee.toJSON();
-      delete updatedEmployeeObj.password;
-
-      // Format timestamps to ISO string
-      if (updatedEmployeeObj.createdAt) {
-        updatedEmployeeObj.createdAt = new Date(updatedEmployeeObj.createdAt).toISOString();
-      }
-      if (updatedEmployeeObj.updatedAt) {
-        updatedEmployeeObj.updatedAt = new Date(updatedEmployeeObj.updatedAt).toISOString();
-      }
-
-      // Generate signed URL for profile picture if it exists
-      if (updatedEmployeeObj.profilePictureKey) {
-        try {
-          updatedEmployeeObj.profilePictureUrl = await getTemporarySignedUrl(updatedEmployeeObj.profilePictureKey);
-        } catch (error) {
-          console.error(`Error generating signed URL for employee ${id}:`, error);
-          updatedEmployeeObj.profilePictureUrl = null;
-        }
-      } else {
-        updatedEmployeeObj.profilePictureUrl = null;
-      }
-
-      return updatedEmployeeObj;
+      return await formatUserObject(employee.toJSON(), id);
     } catch (error) {
       await transaction.rollback();
       console.error('Error updating employee:', error);
@@ -448,7 +301,75 @@ class UserService {
   }
 
 
-  
+  async getProfile(currentUserId) {
+    try {
+      const user = await User.findOne({ where: { id: currentUserId } });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      return await formatUserObject(user.toJSON(), currentUserId);
+    } catch (error) {
+      console.error('Error getting profile:', error);
+      throw error;
+    }
+  }
+
+  async updateProfile(currentUserId, profileData) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const user = await User.findOne({
+        where: { id: currentUserId },
+        transaction
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const {
+        name,
+        email,
+        designation,
+        department,
+        dateOfBirth,
+        employeeId,
+        salary,
+        joiningDate,
+        phoneNumber,
+        profilePictureKey,
+        status,
+      } = profileData;
+
+      // Validate enum fields
+      validateEnumFields({ designation, department, status });
+
+      // Check for user conflicts
+      await checkUserConflicts({ email, employeeId, excludeUserId: currentUserId, transaction });
+
+      // Handle profile picture update: delete old image if new one is provided
+      await handleProfilePictureUpdate(user.profilePictureKey, profilePictureKey, currentUserId);
+
+      // Prepare update data - allow updating all fields except id, password, and role
+      const updateData = prepareUpdateData(profileData, [
+        'name', 'email', 'designation', 'department', 'dateOfBirth',
+        'employeeId', 'salary', 'joiningDate', 'phoneNumber',
+        'profilePictureKey', 'status'
+      ]);
+
+      // Update the user
+      await user.update(updateData, { transaction });
+      await transaction.commit();
+
+      return await formatUserObject(user.toJSON(), currentUserId);
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new UserService();

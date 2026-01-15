@@ -93,14 +93,26 @@ const updateEmployee = async (req, res) => {
   }
 };
 
-
-
-
-module.exports = {
-  createEmployee,
-  getProfileUploadUrl,
-  getEmployee,
-  getEmployeeById,
-  deleteEmployee,
-  updateEmployee,
+const getProfile = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id;
+    const result = await userService.getProfile(currentUserId);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Failed to get profile' });
+  }
 };
+
+const updateProfile = async (req, res) => {
+  try {
+    const currentUserId = req.user?.id;
+    const result = await userService.updateProfile(currentUserId, req.body);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
+
+module.exports = { getProfile, updateProfile, createEmployee, getProfileUploadUrl, getEmployee, getEmployeeById, deleteEmployee, updateEmployee };

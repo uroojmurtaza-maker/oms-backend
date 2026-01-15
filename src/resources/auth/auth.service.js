@@ -1,6 +1,8 @@
 const { User } = require('../../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const {  getTemporarySignedUrl } = require('../../utils/s3SignedUrl.utils');
+
 
 class AuthService {
   async login(email, password) {
@@ -23,7 +25,13 @@ class AuthService {
       { expiresIn: '7d' }  // Token valid for 7 days
     );
 
-    // Return  user data + token 
+    if (user.profilePictureKey) {
+      user.profilePictureUrl = await getTemporarySignedUrl(user.profilePictureKey);
+    } else {
+      user.profilePictureUrl = null;
+    }
+
+    // Return  user data + token
     return {
       token,
       user: {
@@ -32,6 +40,7 @@ class AuthService {
         email: user.email,
         role: user.role,
         employeeId: user.employeeId,
+        profileImageUrl: user.profilePictureUrl,
       },
     };
   }

@@ -19,7 +19,7 @@ async function getSignedUrlForUpload({ key, contentType, expiresIn = 900 }) {
   return await getSignedUrl(s3Client, command, { expiresIn });
 }
 
-async function getTemporarySignedUrl(key, expiresIn = 3600) {
+async function getTemporarySignedUrl(key, expiresIn = 172800) {
   const command = new GetObjectCommand({
     Bucket: process.env.AWS_S3_BUCKET,
     Key: key,
