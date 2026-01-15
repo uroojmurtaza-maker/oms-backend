@@ -44,16 +44,12 @@ class UserService {
         throw new Error('Missing required fields');
       }
 
-
       // Check for user conflicts
       await checkUserConflicts({ email, employeeId, transaction });
 
       // Validate enum fields
-      validateEnumFields({ designation, department, status });
+      validateEnumFields({ designation, department, status, role });
 
-      if (!USER_ROLE_VALUES.includes(role)) {
-        throw new Error(`Invalid role. Allowed: ${USER_ROLE_VALUES.join(', ')}`);
-      }
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
